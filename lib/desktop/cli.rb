@@ -29,30 +29,18 @@ require_relative 'version'
 
 require 'tty/reader'
 require 'commander'
-require_relative 'patches/highline-ruby_27_compat'
 
 module Desktop
   module CLI
     PROGRAM_NAME = ENV.fetch('FLIGHT_PROGRAM_NAME','desktop')
 
-    extend Commander::Delegates
+    extend Commander::CLI
     program :application, "Flight Desktop"
     program :name, PROGRAM_NAME
     program :version, "v#{Desktop::VERSION}"
     program :description, 'Manage interactive GUI desktop sessions.'
     program :help_paging, false
     default_command :help
-    silent_trace!
-
-    error_handler do |runner, e|
-      case e
-      when TTY::Reader::InputInterrupt
-        $stderr.puts "\n#{Paint['WARNING', :underline, :yellow]}: Cancelled by user"
-        exit(130)
-      else
-        Commander::Runner::DEFAULT_ERROR_HANDLER.call(runner, e)
-      end
-    end
 
     if ENV['TERM'] !~ /^xterm/ && ENV['TERM'] !~ /rxvt/
       Paint.mode = 0
@@ -172,6 +160,18 @@ EOF
       c.summary = 'Start an interactive desktop session'
       c.action Commands, :start
       c.option '-g', '--geometry GEOMETRY', Geometry, 'Specify desktop geometry.'
+      c.slop.array '-a', '--app', <<~DESC.chomp, delimiter: nil, meta: '"BINARY [ARGUMENTS...]"'
+        Specify the binary/launch script for a graphical application.
+
+        Multiple applications can be started by repating the --app flag.
+        Not supported by all desktop types.
+      DESC
+      c.slop.array '-s', '--script', <<~DESC.chomp, delimiter: nil, meta: '"SCRIPT [ARGUMENTS...]"'
+        Start a script on the remote session.
+
+        Mutliple scripts can be started by repeating the --script flag.
+        Not supported by all desktop types.
+      DESC
       c.description = <<EOF
 Start a new interactive desktop session and display details about the
 new session.

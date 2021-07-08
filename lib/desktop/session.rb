@@ -319,6 +319,39 @@ module Desktop
       rc.success?
     end
 
+    def start_app(*args, **opts)
+      start_script(*args, **opts.merge(app: true))
+    end
+
+    def start_script(*args, index:, app: false)
+      # Log the app/script
+      tag = "#{(app ? 'app' : 'script')}.#{index}"
+      log = File.join(dir, "#{tag}.log")
+      File.write(log, "Running (#{tag}): #{args}")
+
+      # Determine the launch script
+      script = (app ? type.launch_app_path : type.launch_script_path)
+
+      # Run the command
+      CommandUtils.with_clean_env do
+        pid = fork {
+          exec(
+            ENV.to_h.dup.merge({
+              "DISPLAY" => ":#{display}",
+              # NOTE: Intentionally the same between app/script for consistency
+              "flight_DESKTOP_SCRIPT_index" => index.to_s,
+              "flight_DESKTOP_SCRIPT_id" => uuid.split(".").first
+            }),
+            'bash',
+            script,
+            *args,
+            [:out, :err] => [log, 'a']
+          )
+        }
+        Process.detach(pid)
+      end
+    end
+
     def active?
       if @state != :broken && local? && File.exists?(pidfile)
         pid = File.read(pidfile)
